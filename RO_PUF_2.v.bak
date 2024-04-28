@@ -1,0 +1,120 @@
+module RO_PUF_2(en,S1,S0,Clk,done,response);
+	input en,Clk;
+	input S1,S0;
+	output done ;
+	output [15:0] response;
+	//output Final_Out;
+	wire y1,y2,y3,y4,y5,y6,y7,y8; 
+	wire MUX_OUT_1,MUX_OUT_2;
+	wire [31:0]Counter_1,Counter_2;
+	wire [8:0] rDone;
+	wire Final_Out;
+	Ring_Oscillator R1 (en,y1);
+	Ring_Oscillator R2(en,y2);
+	Ring_Oscillator_1 R3(en,y3);
+	Ring_Oscillator_1 R4(en,y4);
+	Ring_Oscillator R5(en,y5);
+	Ring_Oscillator_1 R6(en,y6);
+	Ring_Oscillator_1 R7(en,y7);
+	Ring_Oscillator R8(en,y8);
+	MUX_4x1 M1(y1,y2,y3,y4,S1,S0,MUX_OUT_1);
+	MUX_4x1 M2(y5,y6,y7,y8,S1,S0,MUX_OUT_2);
+	Counter C1(.clk(MUX_OUT_1),.en(en),.rst(~en),.c_out(Counter_1));
+	Counter C2(.clk(MUX_OUT_2),.en(en),.rst(~en),.c_out(Counter_2));
+	Counter counter_ref(.clk(Clk), .en(en),.rst(~en), .c_out(rDone));
+	Comparator Comp1(Counter_1,Counter_2,Final_Out);
+	PUF_ShiftReg SR(.clk(Clk), .en(en),.rst(~en),.s_in(Final_Out), .shift_out(response));
+
+   assign done = (rDone == 9'd256) ? 1'b1 : 1'b0;
+endmodule
+
+module Ring_Oscillator(en,y);
+	input en;
+	output y;
+	(* dont_touch = "yes" *)wire #(2)w1;
+	(* dont_touch = "yes" *)wire #(2)w2;
+	(* dont_touch = "yes" *)wire #(2)w3;
+	(* dont_touch = "yes" *)wire #(2)w4;	
+	(* dont_touch = "yes" *)wire #(2)w5;
+	assign w1 = en & y;
+	assign w2 = ~w1;
+	assign w3 = 
+	and(w1,en,y);
+	not(w2,w1);
+	not(w3,w2);
+	not(w4,w3);
+	not(w5,w4);
+	not(y,w5);
+endmodule
+
+module Ring_Oscillator_1(en,y);
+	input en;
+	output y;
+	(*preserve*)wire #(1) w1,
+	  w2,
+	w3,
+	 w4,
+	 w5;
+	and(w1,en,y);
+	not(w2,w1);
+	not(w3,w2);
+	not(w4,w3);
+	not(w5,w4);
+	not(y,w5);
+endmodule
+module MUX_4x1(I0,I1,I2,I3,S1,S0,y);
+	input I0,I1,I2,I3;
+	input S1,S0;
+	output y;
+	assign y= ~S1 & ~S0 & I0 | ~S1 & S0 & I1 | S1 & ~S0 & I2 | S1 & S0 & I3 ;
+endmodule
+
+module Counter(
+
+	input clk, en, rst ,
+	output reg [31:0] c_out
+);
+
+always@(posedge clk or posedge rst)
+begin
+	if(rst) c_out <= 32'd0;
+	else
+		begin
+				if(en)
+						c_out <= c_out + 32'h1;
+				else
+						c_out <= c_out;
+		end
+end
+endmodule
+
+
+module Comparator(in1,in2,out);
+	input [31:0] in1,in2;
+	output reg out;
+	always @ (*)
+		begin
+				if(in1==in2)
+					out = 1'b1;
+				else
+					out = 1'b0;
+		end
+endmodule
+
+module PUF_ShiftReg(
+
+	input clk, s_in, en, rst,
+	output reg [15:0] shift_out
+
+);
+
+always@(posedge clk or posedge rst)
+begin
+	if(rst) shift_out <= 16'd0;
+	else
+	begin
+			if(en) shift_out <= {s_in, shift_out[15:1]};
+			else shift_out <= shift_out;
+	end
+end
+endmodule
